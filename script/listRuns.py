@@ -386,7 +386,7 @@ html = """
 if not options.cosmics:
     html += "<tr><th>Run</th><th>B-field</th><th>LS</th><th>LUMI</th><th>ONLINE</th><th>EXPRESS</th><th>PROMPT</th><th>CENTRAL</th><th>NOTES</th></tr>"
 else:
-    html += "<tr><th>Run</th><th>LS</th><th>TRACKS<br/>ALCA</th><th>TRACK RATE<br/>ALCA (Hz)</th><th>APV<br/>MODE</th><th>ONLINE</th><th>PROMPT</th><th>CENTRAL</th><th>NOTES</th></tr>"
+    html += "<tr><th>Run</th><th>B-field</th><th>LS</th><th>TRACKS<br/>ALCA</th><th>TRACK RATE<br/>ALCA (Hz)</th><th>APV<br/>MODE</th><th>ONLINE</th><th>PROMPT</th><th>CENTRAL</th><th>NOTES</th></tr>"
 
 def v2c(isopen,verdict):
     if isopen: return 'TODO'
@@ -435,9 +435,9 @@ for r in runs:
         html += "<tr><th>%d</th><td class='num'>%.1f T</td><td class='num'>%d</td><td class='num'>%.1f pb<sup>-1</sup></td>" % (r, runlist[r]['RR_bfield'] , lumiCache[r][0], lumiCache[r][1])
     else:
         if lumiCache[r][0] >= 0:
-            html += "<tr><th>%d</th><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%.1f</td>" % (r, lumiCache[r][0], lumiCache[r][1], lumiCache[r][1]/lumiCache[r][0]/23.31 )
+            html += "<tr><th>%d</th><td class='num'>%.1f T</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%.1f</td>" % (r, runlist[r]['RR_bfield'], lumiCache[r][0], lumiCache[r][1], lumiCache[r][1]/lumiCache[r][0]/23.31 )
         else:
-            html += "<tr><th>%d</th><td class='num TODO'>%d</td><td class='num TODO'>%d</td><td class='num TODO'>%.1f</td>" % (r, -lumiCache[r][0], lumiCache[r][1], -lumiCache[r][1]/lumiCache[r][0]/23.31)
+            html += "<tr><th>%d</th><td class='num'>%.1f T</td><td class='num TODO'>%d</td><td class='num TODO'>%d</td><td class='num TODO'>%.1f</td>" % (r, runlist[r]['RR_bfield'], -lumiCache[r][0], lumiCache[r][1], -lumiCache[r][1]/lumiCache[r][0]/23.31)
         html += "<td class='%s'><span title='%s'>%s</span></td>" % (lumiCache[r][3], lumiCache[r][4], lumiCache[r][2])
 
     if not options.cosmics:
@@ -450,7 +450,7 @@ for r in runs:
             position=position+1
             if position == 3 and options.cosmics:
                 #if r >= 238443:
-                if r >= 250989: #3.8T cosmics
+                if r >= 250989 and runlist[r]['RR_bfield'] > 3.5: #3.8T cosmics
                     if X[1] != 'BAD' and abs(lumiCache[r][0]) > 10:
                         allLumi=allLumi+abs(lumiCache[r][0])
                         allAlcaTracks=allAlcaTracks+abs(lumiCache[r][1])
@@ -480,7 +480,7 @@ http-equiv="content-type">
 <div style="text-align: center; font-family: Candara;"><big><big><big
 style="font-family: Candara Bold;"><big><big><big><big><big><big>%.0f</big></big></big></big></big></big></big></big></big><br>
 </div>
-<div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>hours of cosmic data-taking at 3.8T</small></big></big></big></big></big><br><br><br>
+<div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>hours of 3.8T interfill cosmic in 2015</small></big></big></big></big></big><br><br><br>
 </div>
 <div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>%.1fM ALCARECO tracks</small></big></big></big></big></big><br>
 </div>
