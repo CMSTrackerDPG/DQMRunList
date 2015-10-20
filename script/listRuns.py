@@ -25,7 +25,7 @@ Wkspace = ["GLOBAL", "TRACKER"]
 Dtype = 0
 
 ### List of people who are not shifters, and whose open runs should be considered "TODO"
-NonShifters = [ "DQMGUI Trigger", "Suchandra Dutta" ] 
+NonShifters = [ "DQMGUI Trigger" ] 
 
 ####Cosmics settings are set after loading config options#####
 
@@ -71,7 +71,15 @@ def isExpressDoneInGUI(run):
     except:
         return False 
     return False
-         
+
+def truncate(f, n):
+    '''Truncates/pads a float f to n decimal places without rounding'''
+    s = '{}'.format(f)
+    if 'e' in s or 'E' in s:
+        return '{0:.{1}f}'.format(f, n)
+    i, p, d = s.partition('.')
+    return '.'.join([i, (d+'0'*n)[:n]])
+
 ##Cosmic settings...
 if options.cosmics: groupName = "Cosmics15"
 ##NOTE: Currently using prompt stream (not express) for central data certification
@@ -403,6 +411,7 @@ allLumi=0
 allAlcaTracks=0
 allLumiWait=0
 allTracksWait=0
+maxcosmicrunforstat = 0
 
 runs = runlist.keys(); runs.sort(); runs.reverse()
 print "ALL RUNS: " , runs , "\n"
@@ -449,44 +458,133 @@ for r in runs:
             html += "<td class='%s'>%s</td>" % (v2c(X[0],X[1]), p2t(X))
             position=position+1
             if position == 3 and options.cosmics:
-                #if r >= 238443:
-                if r >= 250989 and runlist[r]['RR_bfield'] > 3.5: #3.8T cosmics
+                if r >= 256631 and runlist[r]['RR_bfield'] > 3.5: #3.8T cosmics
                     if X[1] != 'BAD' and abs(lumiCache[r][0]) > 10:
                         allLumi=allLumi+abs(lumiCache[r][0])
                         allAlcaTracks=allAlcaTracks+abs(lumiCache[r][1])
+                        maxcosmicrunforstat = max(maxcosmicrunforstat, r)
                     else:
                         allLumiWait=allLumiWait+abs(lumiCache[r][0])
                         allTracksWait=allTracksWait+abs(lumiCache[r][1])
 
     html += "<td>%s</td></tr>\n" % note;
+
 html += "</table></body></html>"
+
 out = open("status.%s.html" % groupName, "w")
-out.write(html)
+out.write(html.encode('utf-8')) #prevent crashes when special chars somehow enter description in RR
 out.close()
 
 if options.cosmics: 
     print "total lumi: " , allLumi , " ALCA tracks: " , allAlcaTracks , " hours: " , allLumi * 23.31 / 3600.
     print "lumi tracks WAIT: " , allLumiWait , " " , allTracksWait
+
+    htmlCOSMICTRACKS = """
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Cosmic Tracks Summary</title>
+
+            <!-- Bootstrap -->
+            <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+
+            <!-- Main Style -->
+            <link rel="stylesheet" type="text/css" href="css/main.css">
+          </head>
+
+        <body>
+        <section id="text-about">
+            Cosmic tracks during interfill periods (%s):
+        </section>
+        <section id="my-table">
+            <div class="container">
+                <div class="row">
+                    <div class="main">
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">2015B</p>
+                                    <p class="table-tracks"><sup>tracks</sup> 0.5M <span>@ 3.8T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 251171 - 252029 (PEAK+DECO)</li>
+                                        <li>56 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">2015C</p>
+                                    <p class="table-tracks"><sup>tracks</sup> 0.3M <span>@ 3.8T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 254111 - 254996 (PEAK+DECO)</li>
+                                        <li>39 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">2015D</p>
+                                    <p class="table-tracks"><sup>tracks</sup> %.1fM <span>@ 3.8T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 256631 - %i (PEAK+DECO)</li>
+                                        <li>%.0f hours and counting...</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        </body>
+        </html>
+
+""" % (time.ctime() , allAlcaTracks / 1000000. , maxcosmicrunforstat , allLumi * 23.31 / 3600. )
+    outCOSMICTRACKS = open("CosmicsBField.hours.html", "w")
+    outCOSMICTRACKS.write(htmlCOSMICTRACKS)
+    outCOSMICTRACKS.close()
+
+
     
-    htmlCRAFT = """
-<html>
-<head>
-<meta content="text/html; charset=ISO-8859-1"
-http-equiv="content-type">
-<title></title>
-</head>
-<body>
-<br><br><br><br>
-<div style="text-align: center; font-family: Candara;"><big><big><big
-style="font-family: Candara Bold;"><big><big><big><big><big><big>%.0f</big></big></big></big></big></big></big></big></big><br>
-</div>
-<div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>hours of 3.8T interfill cosmic in 2015</small></big></big></big></big></big><br><br><br>
-</div>
-<div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>%.1fM ALCARECO tracks</small></big></big></big></big></big><br>
-</div>
-</body>
-</html>
-""" % (allLumi * 23.31 / 3600. , allAlcaTracks / 1000000. )
-    outCRAFT = open("CosmicsBField.hours.html", "w")
-    outCRAFT.write(htmlCRAFT)
-    outCRAFT.close()
+#    htmlCRAFT = """
+#<html>
+#<head>
+#<meta content="text/html; charset=ISO-8859-1"
+#http-equiv="content-type">
+#<title></title>
+#</head>
+#<body>
+#<br><br><br><br>
+#<div style="text-align: center; font-family: Candara;"><big><big><big
+#style="font-family: Candara Bold;"><big><big><big><big><big><big>%.0f</big></big></big></big></big></big></big></big></big><br>
+#</div>
+#<div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>hours of 3.8T interfill cosmic in 2015</small></big></big></big></big></big><br><br><br>
+#</div>
+#<div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>%.1fM ALCARECO tracks</small></big></big></big></big></big><br>
+#</div>
+#</body>
+#</html>
+#""" % (allLumi * 23.31 / 3600. , allAlcaTracks / 1000000. )
+#    outCRAFT = open("CosmicsBField.hours.html", "w")
+#    outCRAFT.write(htmlCRAFT)
+#    outCRAFT.close()
+
+#subprocess.call(['sed' , 's@XAMOUNT@@g;s@XMAXRUN@@g;s@XHOURS@@g' , ] , stdout=CosmicsBField.hours.html])
