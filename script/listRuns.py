@@ -7,16 +7,21 @@ from rrapi import RRApi, RRApiError
 import xmlrpclib
 #import elementtree.ElementTree as ET
 import sys, os, os.path, time, re, subprocess
+import urllib
+import json
 
 ##Run classification
-groupName = "Collisions15"
+groupName = "Collisions16"
+#groupName = "Commissioning2016"
 ##Dataset for GUI query
 express = ['/StreamExpress/', '/StreamExpressCosmics/']
+expresshi = ['/StreamHIExpress/', '/StreamExpressCosmics/']
 prompt  = ['/ZeroBias/',   '/Cosmics/']
 prompt1  = ['/ZeroBias1/',   '/Cosmics/']
+prompthi  = ['/HIMinimumBias1/',   '/Cosmics/']
 express0t = ['/StreamExpress0T/', '/StreamExpressCosmics/']
 prompt0t  = ['/ZeroBias_0T/',   '/Cosmics/']
-yearPattern = ".*15" # select anything with a 15 in the name
+yearPattern = ".*16" # select anything with a 16 in the name
 ##Workspace and dset types
 Wkspace = ["GLOBAL", "TRACKER"]
 ####This is under construction...
@@ -81,7 +86,7 @@ def truncate(f, n):
     return '.'.join([i, (d+'0'*n)[:n]])
 
 ##Cosmic settings...
-if options.cosmics: groupName = "Cosmics15"
+if options.cosmics: groupName = "Cosmics16"
 ##NOTE: Currently using prompt stream (not express) for central data certification
 if options.cosmics: Dtype = 1
 
@@ -108,6 +113,7 @@ try:
             else:
                 cols = l.split()
                 lumiCache[int(cols[0])] = [ int(cols[1]), int(cols[2]), cols[3], cols[4], cols[5].replace("_"," ") ] 
+    print "LUMICACHE " , lumiCache
 except IOError:
    pass 
 
@@ -140,6 +146,7 @@ def getRR(whichRR, dataName):
     domB = '';
     try:
         dom  = parseString(text)
+        print "DOM " , dom
     except:
         ##In case of a non-Standard RR output (dom not set)
         print "Could not parse RR output"
@@ -149,6 +156,7 @@ def getRR(whichRR, dataName):
         log.write(text_bfield); log.close()
         try:
             domB  = parseString(text_bfield)
+            print "DOMB " , domB
         except:
         ##In case of a non-Standard RR output (dom not set)
             print "Could not parse RR output"
@@ -222,7 +230,7 @@ def getRR(whichRR, dataName):
         if whichRR == 'GLOBAL' and dataName == 'Online':
             runlist[run]['RR_bfield'] = float(bfield)
             
-        print "runlist " , runlist[run]
+        #print "runlist " , runlist[run]
 
 getRR("GLOBAL", "Online")
 getRR("GLOBAL", "Prompt")
@@ -240,7 +248,10 @@ ed = express[Dtype]
 pd = prompt[Dtype]
 pd1 = prompt1[Dtype]
 pd0t = prompt0t[Dtype]
+pdhi = prompthi[Dtype]
 ed0t = express0t[Dtype]
+edhi = expresshi[Dtype]
+
 for n,d in (('Express',ed), ('Prompt',pd)):
     samples = dqm_get_samples(serverurl, d+yearPattern)
     for (r, d2) in samples:
@@ -255,6 +266,12 @@ if Dtype == 0: #collisions-only
             runlist[r]['GUI_'+n] = True
 
     for n,d in (('Express',ed0t), ('Prompt',pd0t)):
+        samples = dqm_get_samples(serverurl, d+yearPattern)
+        for (r, d2) in samples:
+            if r not in runlist: continue
+            runlist[r]['GUI_'+n] = True
+
+    for n,d in (('Express',edhi), ('Prompt',pdhi)):
         samples = dqm_get_samples(serverurl, d+yearPattern)
         for (r, d2) in samples:
             if r not in runlist: continue
@@ -300,17 +317,17 @@ if not options.cosmics:
             newcache.write("%d\t%d\t%.3f\n" % (run, lumiCache[run][0], lumiCache[run][1]))
     newcache.close()
 else:
-    print "Getting APV modes"
-    apvModeList = []; minrun = min(runlist.keys())
+    #print "Getting APV modes"
+    #apvModeList = []; minrun = min(runlist.keys())
     #pyScript = os.environ['CMSSW_RELEASE_BASE']+"/src/CondFormats/SiStripObjects/test/SiStripLatencyInspector.py"
-    pyScript = "SiStripLatencyInspector.py"
-    modeDumpPipe = subprocess.Popen(['python', pyScript], bufsize=-1, stdout=subprocess.PIPE).stdout;
-    for line in modeDumpPipe:
-        m = re.match(r"since = (\d+) , till = (\d+) --> (peak|deco) mode", line)
-        if m:
-            first, last, mode = int(m.group(1)), int(m.group(2)), m.group(3).upper() 
-            if last >= minrun: apvModeList.append( (first, last, mode) )
-    apvModeList.sort()
+    #pyScript = "SiStripLatencyInspector.py"
+    #modeDumpPipe = subprocess.Popen(['python', pyScript], bufsize=-1, stdout=subprocess.PIPE).stdout;
+    #for line in modeDumpPipe:
+    #    m = re.match(r"since = (\d+) , till = (\d+) --> (peak|deco) mode", line)
+    #    if m:
+    #        first, last, mode = int(m.group(1)), int(m.group(2)), m.group(3).upper() 
+    #        if last >= minrun: apvModeList.append( (first, last, mode) )
+    #apvModeList.sort()
     print "Getting tracks"
     newcache = open("tracks-by-run.txt", "w");
     newcache.write("run\tls\talcatracks\tmode\tmode_flag\tmode_text\n");
@@ -318,13 +335,20 @@ else:
         if run not in lumiCache:
             print " - ",run
             dbmode = '???'
-            for (start,end,mode) in apvModeList:
-                if run >= start and run <= end: 
-                    dbmode = mode
-                    break
+            #for (start,end,mode) in apvModeList:
+            #    if run >= start and run <= end: 
+            #        dbmode = mode
+            #        break
+
+            link = "http://cern.ch/erik.butz/cgi-bin/getReadOutmode.pl?RUN=" + str(run)
+            f = urllib.urlopen(link)
+            json_data = f.read()            
+            dbmodelist = json.loads(json_data)
+            dbmode = dbmodelist[0][1]
             lslumi = (-1,0,dbmode,"WAIT","from DB mode (run not in prompt GUI yet)")
             try:
                 dataset = "%s%s-%s/DQMIO" % (prompt[1], eraForRun(run), getPrForRun(run))
+                print "DATASET " , dataset
                 at = dqm_get_json(serverurl, run, dataset, "AlCaReco/TkAlCosmics0T/GeneralProperties")
                 ei = dqm_get_json(serverurl, run, dataset, "Info/EventInfo")
                 tib =dqm_get_json(serverurl, run, dataset, "SiStrip/MechanicalView/TIB")
@@ -346,18 +370,14 @@ else:
                 try:
                     dataset = "%s%s-%s/DQMIO" % (express[1], eraForRun(run), getErForRun(run))
                     at = dqm_get_json(serverurl, run, dataset, "AlCaReco/TkAlCosmics0T/GeneralProperties")
-                    print "try one"
                     ei = dqm_get_json(serverurl, run, dataset, "Info/EventInfo")
-                    print "try two"
-                    print ei
                     nlumis  = ei['ProcessedLS']['nentries']
-                    print "try three: " , nlumis
                     nalcatracks = at['Chi2Prob_ALCARECOTkAlCosmicsCTF0T']['nentries']
-                    print "try four"
                     if nlumis > 0:
                         lslumi = (-nlumis,nalcatracks,dbmode,"WAIT","from DB mode (run not in prompt GUI yet)")
                 except:
                     pass
+            print "LSLUMI ", lslumi
             lumiCache[run] = lslumi
         if lumiCache[run][0] >= 0:
             newcache.write("%d\t%d\t%d\t%s\t%s\t%s\n" % (run, 
@@ -394,11 +414,11 @@ html = """
 if not options.cosmics:
     html += "<tr><th>Run</th><th>B-field</th><th>LS</th><th>LUMI</th><th>ONLINE</th><th>EXPRESS</th><th>PROMPT</th><th>CENTRAL</th><th>NOTES</th></tr>"
 else:
-    html += "<tr><th>Run</th><th>B-field</th><th>LS</th><th>TRACKS<br/>ALCA</th><th>TRACK RATE<br/>ALCA (Hz)</th><th>APV<br/>MODE</th><th>ONLINE</th><th>PROMPT</th><th>CENTRAL</th><th>NOTES</th></tr>"
+    html += "<tr><th>Run</th><th>B-field</th><th>LS</th><th>TRACKS<br/>ALCA</th><th>TRACK RATE<br/>ALCA</th><th>APV<br/>MODE</th><th>ONLINE</th><th>EXPRESS</th><th>PROMPT</th><th>CENTRAL</th><th>NOTES</th></tr>"
 
 def v2c(isopen,verdict):
     if isopen: return 'TODO'
-    for X,Y in [('BAD','BAD'), ('bad','bad'), ('GOOD','GOOD'), ('TODO','TODO'), ('WAIT','WAIT'), ('Wait','Wait'),('SKIP','SKIP'),('N/A','SKIP')]:
+    for X,Y in [('BAD','BAD'), ('bad','bad'), ('GOOD','GOOD'), ('TODO','TODO'), ('WAIT','WAIT'), ('Wait','Wait'),('SKIP','SKIP'),('N/A','SKIP'),('STANDBY','STANDBY'),('EXCLUDED','EXCL')]:
         if X in verdict: return Y
 def p2t(pair):
     (isopen, verdict, comment) = pair
@@ -407,11 +427,25 @@ def p2t(pair):
     else:
         return verdict
 
-allLumi=0
-allAlcaTracks=0
+allLumi_currentH=0
+allAlcaTracks_currentH=0
 allLumiWait=0
 allTracksWait=0
 maxcosmicrunforstat = 0
+allAlcaTracksPEAK=0
+
+allLumiB=0
+allAlcaTracksB=0
+allLumiC=0
+allAlcaTracksC=0
+allLumiD=0
+allAlcaTracksD=0
+allLumiE=0
+allAlcaTracksE=0
+allLumiF=0
+allAlcaTracksF=0
+allLumiG=0
+allAlcaTracksG=0
 
 runs = runlist.keys(); runs.sort(); runs.reverse()
 print "ALL RUNS: " , runs , "\n"
@@ -421,32 +455,42 @@ print ""
 print "%-6s |  %-15s | %-15s | %-15s | %-15s | %s " % ("RUN","ONLINE","EXPRESS","PROMPT","CENTRAL","NOTES")
 print "%-6s |  %-15s | %-15s | %-15s | %-15s | %s " % ("-"*6, "-"*15, "-"*15, "-"*15, "-"*15, "-"*30)
 for r in runs:
-    if options.cosmics and lumiCache[r][3] == 'WAIT': continue #ignore cosmic runs in the waiting list
+    #if options.cosmics and lumiCache[r][3] == 'WAIT': continue #ignore cosmic runs in the waiting list (express stream)
     if options.cosmics and lumiCache[r][0] == -1: continue     #ignore irrelevant runs (?)
     R = runlist[r]
+    print ' R '
+    print R
     All_comments=''
     online = R['RR_GLOBAL_Online'] if 'RR_GLOBAL_Online' in R else [False,'TODO','']
     (expr_t, prompt_t, central) = ([False,'WAIT',''], [False,'WAIT',''], [False,'WAIT',''])
-    if 'GUI_Express' in R:
+    #if 'GUI_Express' in R:
+    if not 'RR_TRACKER_Express' in R:
+        if isExpressDoneInGUI(r):
+            expr_t = [ False, 'TODO','' ]
+    if 'RR_TRACKER_Express' in R:
         expr_t = R['RR_TRACKER_Express'] if 'RR_TRACKER_Express' in R else [False,'TODO',''];
         if options.cosmics:
-             expr_t = [ False, 'N/A','' ]
+            #expr_t = [ False, 'N/A','' ]
+            print "COSMICS" , expr_t
         elif expr_t[1] == 'TODO' and not isExpressDoneInGUI(r):
              expr_t = [ False, 'Wait','Express not complete in GUI yet' ]
+    print 'EXPRT' , expr_t         
     if not options.cosmics and (expr_t[1] == 'Wait' or expr_t[1] == 'WAIT'): continue #ignore collision runs in the waiting list
-    if 'GUI_Prompt' in R:
+    #if 'GUI_Prompt' in R:
+    if 'RR_TRACKER_Prompt' in R:
         prompt_t = R['RR_TRACKER_Prompt'] if 'RR_TRACKER_Prompt' in R else [False,'TODO',''];
         All_comments+= prompt_t[1]
         central = R['RR_GLOBAL_Prompt']  if 'RR_GLOBAL_Prompt'  in R else [False,'TODO',''];
     note = notes[r] if r in notes else All_comments
+    print prompt_t
     print "%6d |  %-15s | %-15s | %-15s | %-15s | %s " % (r, online[1], expr_t[1], prompt_t[1], central[1], note)
     if not options.cosmics:
         html += "<tr><th>%d</th><td class='num'>%.1f T</td><td class='num'>%d</td><td class='num'>%.1f pb<sup>-1</sup></td>" % (r, runlist[r]['RR_bfield'] , lumiCache[r][0], lumiCache[r][1])
     else:
         if lumiCache[r][0] >= 0:
-            html += "<tr><th>%d</th><td class='num'>%.1f T</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%.1f</td>" % (r, runlist[r]['RR_bfield'], lumiCache[r][0], lumiCache[r][1], lumiCache[r][1]/lumiCache[r][0]/23.31 )
+            html += "<tr><th>%d</th><td class='num'>%.1f T</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%.1f Hz</td>" % (r, runlist[r]['RR_bfield'], lumiCache[r][0], lumiCache[r][1], lumiCache[r][1]/lumiCache[r][0]/23.31 )
         else:
-            html += "<tr><th>%d</th><td class='num'>%.1f T</td><td class='num TODO'>%d</td><td class='num TODO'>%d</td><td class='num TODO'>%.1f</td>" % (r, runlist[r]['RR_bfield'], -lumiCache[r][0], lumiCache[r][1], -lumiCache[r][1]/lumiCache[r][0]/23.31)
+            html += "<tr><th>%d</th><td class='num'>%.1f T</td><td class='num TODO'>%d</td><td class='num TODO'>%d</td><td class='num TODO'>%.1f Hz</td>" % (r, runlist[r]['RR_bfield'], -lumiCache[r][0], lumiCache[r][1], -lumiCache[r][1]/lumiCache[r][0]/23.31)
         html += "<td class='%s'><span title='%s'>%s</span></td>" % (lumiCache[r][3], lumiCache[r][4], lumiCache[r][2])
 
     if not options.cosmics:
@@ -454,18 +498,44 @@ for r in runs:
             html += "<td class='%s'>%s</td>" % (v2c(X[0],X[1]), p2t(X))
     else:
         position=0
-        for X in (online, prompt_t, central):
+        for X in (online, expr_t , prompt_t, central):
             html += "<td class='%s'>%s</td>" % (v2c(X[0],X[1]), p2t(X))
             position=position+1
-            if position == 3 and options.cosmics:
-                if r >= 256631 and runlist[r]['RR_bfield'] > 3.5: #3.8T cosmics
-                    if X[1] != 'BAD' and abs(lumiCache[r][0]) > 10:
-                        allLumi=allLumi+abs(lumiCache[r][0])
-                        allAlcaTracks=allAlcaTracks+abs(lumiCache[r][1])
+            if position == 3 and options.cosmics and abs(lumiCache[r][0]) > 1: #('BAD' not in X[1])
+                if r >= 280992 and runlist[r]['RR_bfield'] > 3.6: #3.8T cosmics                
+                        allLumi_currentH=allLumi_currentH+abs(lumiCache[r][0])
+                        allAlcaTracks_currentH=allAlcaTracks_currentH+abs(lumiCache[r][1])
                         maxcosmicrunforstat = max(maxcosmicrunforstat, r)
-                    else:
-                        allLumiWait=allLumiWait+abs(lumiCache[r][0])
-                        allTracksWait=allTracksWait+abs(lumiCache[r][1])
+
+                if r >= 278809 and r <= 280831 and runlist[r]['RR_bfield'] > 3.6: #3.8T cosmics                
+                        allLumiG=allLumiG+abs(lumiCache[r][0])
+                        allAlcaTracksG=allAlcaTracksG+abs(lumiCache[r][1])
+
+                if r >= 277772 and r <= 278808 and runlist[r]['RR_bfield'] > 3.6: #3.8T cosmics                
+                        allLumiF=allLumiF+abs(lumiCache[r][0])
+                        allAlcaTracksF=allAlcaTracksF+abs(lumiCache[r][1])
+
+                if r >= 276824 and r <= 277754 and runlist[r]['RR_bfield'] > 3.6: #3.8T cosmics                
+                        allLumiE=allLumiE+abs(lumiCache[r][0])
+                        allAlcaTracksE=allAlcaTracksE+abs(lumiCache[r][1])
+
+                if r >= 276333 and r <= 276804 and runlist[r]['RR_bfield'] > 3.6: #3.8T cosmics                
+                        allLumiD=allLumiD+abs(lumiCache[r][0])
+                        allAlcaTracksD=allAlcaTracksD+abs(lumiCache[r][1])
+
+                if r >= 275419 and r <= 276825 and runlist[r]['RR_bfield'] > 3.6: #3.8T cosmics                
+                        allLumiC=allLumiC+abs(lumiCache[r][0])
+                        allAlcaTracksC=allAlcaTracksC+abs(lumiCache[r][1])
+
+                if r >= 272118 and r <= 275418 and runlist[r]['RR_bfield'] > 3.6: #3.8T cosmics                
+                        allLumiB=allLumiB+abs(lumiCache[r][0])
+                        allAlcaTracksB=allAlcaTracksB+abs(lumiCache[r][1])
+
+                        #if lumiCache[r][2] == 'PEAK':
+                        #    allAlcaTracksPEAK = allAlcaTracksPEAK + abs(lumiCache[r][1])
+                    #else:
+                    #    allLumiWait=allLumiWait+abs(lumiCache[r][0])
+                    #    allTracksWait=allTracksWait+abs(lumiCache[r][1])
 
     html += "<td>%s</td></tr>\n" % note;
 
@@ -476,8 +546,8 @@ out.write(html.encode('utf-8')) #prevent crashes when special chars somehow ente
 out.close()
 
 if options.cosmics: 
-    print "total lumi: " , allLumi , " ALCA tracks: " , allAlcaTracks , " hours: " , allLumi * 23.31 / 3600.
-    print "lumi tracks WAIT: " , allLumiWait , " " , allTracksWait
+    #print "total lumi: " , allLumi , " ALCA tracks: " , allAlcaTracks , " hours: " , allLumi * 23.31 / 3600.
+    #print "lumi tracks WAIT: " , allLumiWait , " " , allTracksWait
 
     htmlCOSMICTRACKS = """
         <!DOCTYPE html>
@@ -496,23 +566,25 @@ if options.cosmics:
 
         <body>
         <section id="text-about">
-            Cosmic tracks during interfill periods (%s):
+            2016 ALCARECO cosmic tracks (%s):
         </section>
         <section id="my-table">
             <div class="container">
+
                 <div class="row">
                     <div class="main">
+
                         <div class="col-md-4 col-sm-12 col-xs-12">
                             <div class="my-table">
                                 <div class="table-header">
-                                    <p class="table-title">2015B</p>
-                                    <p class="table-tracks"><sup>tracks</sup> 0.5M <span>@ 3.8T</span></p>
+                                    <p class="table-title">2016H</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> %.0fK <span>@ 3.8T</span></p>
                                 </div>
 
                                 <div class="table-details">
                                     <ul>
-                                        <li>run range: 251171 - 252029 (PEAK+DECO)</li>
-                                        <li>56 hours in total</li>
+                                        <li>run range: 280992 - %i</li>
+                                        <li>%i hours and counting...</li>
                                     </ul>
                                 </div>
                             </div>
@@ -521,14 +593,14 @@ if options.cosmics:
                         <div class="col-md-4 col-sm-12 col-xs-12">
                             <div class="my-table">
                                 <div class="table-header">
-                                    <p class="table-title">2015C</p>
-                                    <p class="table-tracks"><sup>tracks</sup> 0.3M <span>@ 3.8T</span></p>
+                                    <p class="table-title">2016G</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 356K <span>@ 3.8T</span></p>
                                 </div>
 
                                 <div class="table-details">
                                     <ul>
-                                        <li>run range: 254111 - 254996 (PEAK+DECO)</li>
-                                        <li>39 hours in total</li>
+                                        <li>run range: 278809 - 280831</li>
+                                        <li>51 hours in total</li>
                                     </ul>
                                 </div>
                             </div>
@@ -537,54 +609,148 @@ if options.cosmics:
                         <div class="col-md-4 col-sm-12 col-xs-12">
                             <div class="my-table">
                                 <div class="table-header">
-                                    <p class="table-title">2015D</p>
-                                    <p class="table-tracks"><sup>tracks</sup> %.1fM <span>@ 3.8T</span></p>
+                                    <p class="table-title">2016F</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 495K <span>@ 3.8T</span></p>
                                 </div>
 
                                 <div class="table-details">
                                     <ul>
-                                        <li>run range: 256631 - %i (PEAK+DECO)</li>
-                                        <li>%.0f hours and counting...</li>
+                                        <li>run range: 277772 - 278808</li>
+                                        <li>68 hours in total</li>
                                     </ul>
                                 </div>
                             </div>
                         </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">2016E</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 46K <span>@ 3.8T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 276824 - 277754</li>
+                                        <li>12 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">2016D</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 12K <span>@ 3.8T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 276333 - 276804</li>
+                                        <li>5 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">2016C</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 299K <span>@ 3.8T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 275419 - 276310</li>
+                                        <li>45 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">2016B</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 2515K <span>@ 3.8T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 272118 - 275418</li>
+                                        <li>300 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">CRUZET</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 58K <span>@ 0T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 268730 - 269989</li>
+                                        <li>14 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">CRUZET GR4</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 82K <span>@ 0T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 267362 - 267878</li>
+                                        <li>23 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 col-sm-12 col-xs-12">
+                            <div class="my-table">
+                                <div class="table-header">
+                                    <p class="table-title">CRUZET GR3</p>
+                                    <p class="table-tracks"><sup>ALCA tracks</sup> 356K <span>@ 0T</span></p>
+                                </div>
+
+                                <div class="table-details">
+                                    <ul>
+                                        <li>run range: 266134 - 266684 </li>
+                                        <li>98 hours in total</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
+
             </div>
         </section>
 
         </body>
         </html>
 
-""" % (time.ctime() , allAlcaTracks / 1000000. , maxcosmicrunforstat , allLumi * 23.31 / 3600. )
-    outCOSMICTRACKS = open("CosmicsBField.hours.html", "w")
+""" % (time.ctime() , allAlcaTracks_currentH / 1000. , maxcosmicrunforstat , abs(allLumi_currentH * 23.31 / 3600.) )
+    outCOSMICTRACKS = open("Cosmics16.hours.html", "w")
     outCOSMICTRACKS.write(htmlCOSMICTRACKS)
     outCOSMICTRACKS.close()
 
-
-    
-#    htmlCRAFT = """
-#<html>
-#<head>
-#<meta content="text/html; charset=ISO-8859-1"
-#http-equiv="content-type">
-#<title></title>
-#</head>
-#<body>
-#<br><br><br><br>
-#<div style="text-align: center; font-family: Candara;"><big><big><big
-#style="font-family: Candara Bold;"><big><big><big><big><big><big>%.0f</big></big></big></big></big></big></big></big></big><br>
-#</div>
-#<div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>hours of 3.8T interfill cosmic in 2015</small></big></big></big></big></big><br><br><br>
-#</div>
-#<div style="text-align: center;"><big style="font-family: Candara;"><big><big><big><big><small>%.1fM ALCARECO tracks</small></big></big></big></big></big><br>
-#</div>
-#</body>
-#</html>
-#""" % (allLumi * 23.31 / 3600. , allAlcaTracks / 1000000. )
-#    outCRAFT = open("CosmicsBField.hours.html", "w")
-#    outCRAFT.write(htmlCRAFT)
-#    outCRAFT.close()
-
-#subprocess.call(['sed' , 's@XAMOUNT@@g;s@XMAXRUN@@g;s@XHOURS@@g' , ] , stdout=CosmicsBField.hours.html])
+print "B " , allAlcaTracksB / 1000. , abs(allLumiB * 23.31 / 3600.) 
+print "C " , allAlcaTracksC / 1000. , abs(allLumiC * 23.31 / 3600.) 
+print "D " , allAlcaTracksD / 1000. , abs(allLumiD * 23.31 / 3600.) 
+print "E " , allAlcaTracksE / 1000. , abs(allLumiE * 23.31 / 3600.) 
+print "F " , allAlcaTracksF / 1000. , abs(allLumiF * 23.31 / 3600.) 
+print "G " , allAlcaTracksG / 1000. , abs(allLumiG * 23.31 / 3600.) 
