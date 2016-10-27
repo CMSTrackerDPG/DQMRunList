@@ -1,0 +1,93 @@
+body{
+}
+
+.btn-custom {
+  color: #bdc3c7;
+  font-size: 18px;
+  border: 1px solid #bdc3c7;
+}
+.btn-custom:hover {
+  color: #ffffff;
+  border: 1px solid #ffffff;
+}
+#my-table {
+  padding-top: 50px;
+}
+#my-table .main {
+  marign: 0;
+  padding: 0;
+  font-family: 'Candara', sans-serif;
+}
+#text-about {
+  text-align: center;
+  margin-top: 15px;
+  font-family: 'Candara', sans-serif;
+  font-size: 34px;
+  letter-spacing: 1px;
+  color: #bdc3c7;
+}
+#my-table .main .my-table {
+  padding-bottom: 30px;
+}
+#my-table .main .my-table .table-header {
+  position: relative;
+  background: #34495e;
+  padding: 22px 0px;
+  text-align: center;
+  border-top-right-radius: 4px;
+  border-top-left-radius: 4px;
+}
+#my-table .main .my-table .table-header .table-title {
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 24px;
+  text-align: center;
+  font-weight: 700;
+}
+#my-table .main .my-table .table-header .table-tracks {
+  font-size: 50px;
+  font-weight: 700;
+  color: #ffffff;
+  position: relative;
+  text-align: center;
+}
+#my-table .main .my-table .table-header .table-tracks sup {
+  font-size: 24px;
+  position: relative;
+  top: -30px;
+  color: #bdc3c7;
+}
+#my-table .main .my-table .table-header .table-tracks span {
+  font-size: 16px;
+  color: #bdc3c7;
+  text-transform: uppercase;
+}
+#my-table .main .table-details {
+  padding: 20px 0 40px 0;
+  background: #ffffff;
+  border: 1px solid #e3e3e3;
+}
+#my-table .main .table-details ul {
+  padding: 0px;
+  display: table;
+  margin: 0px auto;
+}
+#my-table .main .table-details ul li {
+  list-style: none;
+  border-bottom: 1px solid #EAECEB;
+#  color: #bdc3c7;
+  color: #34495e;
+  font-size: 16px;
+  line-height: 42px;
+}
+#my-table .main .table-details ul li:last-child {
+  border: none;
+}
+#my-table .main .table-details ul li i {
+  margin-right: 12px;
+  color: #bdc3c7;
+}
+#my-table .main .table-details ul li span {
+  color: #34495e;
+}
